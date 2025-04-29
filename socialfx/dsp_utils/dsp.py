@@ -95,6 +95,7 @@ def socialfx_eq(
     band39_gain_db: float,
     q_factor: Optional[float] = None,
     range_scale: Optional[float] = None,
+    normalize: Optional[bool] = False,
 ):
     """40-band Graphic Equalizer based on the JavaScript Equalizer implementation.
 
@@ -150,13 +151,28 @@ def socialfx_eq(
         band30_gain_db, band31_gain_db, band32_gain_db, band33_gain_db, band34_gain_db,
         band35_gain_db, band36_gain_db, band37_gain_db, band38_gain_db, band39_gain_db
     ])
-
+    # Check if normalization is needed (similar to equalizer.js)
+    # Normalize the curve if requested (matching equalizer.js lines 74-91)
+    if normalize:
+        # Find min and max values for normalization
+        min_val = np.min(band_gains)
+        max_val = np.max(band_gains)
+        # Apply normalization if there's a range to normalize
+        if max_val != min_val:
+            # Normalize to range [-1, 1] exactly as in equalizer.js
+            normalized_gains = np.zeros_like(band_gains)
+            for i in range(len(band_gains)):
+                # This matches the JS implementation's normalization formula:
+                # dat = value[i] - min_el
+                # dat = dat / (max_el - min_el) * 2
+                # curve.push(dat - 1)
+                normalized_gains[i] = (band_gains[i] - min_val) / (max_val - min_val) * 2 - 1
+            band_gains = normalized_gains
     # Apply range scaling to all bands (matching equalizer.js line 90)
+    # In JS: gain = range * 5 * curve[i]
     band_gains = band_gains * range_scale * 5.0
-
     # Apply all filters in sequence (matching JavaScript chain of filters)
     x_out = x.copy()
-
     # Process each channel
     for ch in range(chs):
         channel_data = x_out[ch]
