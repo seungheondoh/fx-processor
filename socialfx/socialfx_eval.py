@@ -3,7 +3,7 @@ import os
 from collections import Counter
 from datasets import load_dataset, Dataset, DatasetDict
 import pandas as pd
-from llm4mp.common_utils.constants import SYNONYM_MAP
+from constants import SYNONYM_MAP
 import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.metrics.pairwise import euclidean_distances
@@ -59,31 +59,42 @@ def get_representative_effects(embeddings, n_clusters):
 
 def process_fx_type(df, fx_type):
     """Process single FX type to get tag-effect mappings"""
+    parma_dict = {k: v for k, v in zip(df['id'], df['param_values'])}
     df_filtered = filter_dataset(df)
     top_tags = Counter(df_filtered['tags']).most_common(15)
     df_top_tags = df_filtered.groupby("tags")["id"].agg(list)
-
     tag2effect = []
     for tag, freq in top_tags:
         effect_list = df_top_tags[tag]
-        df_embs = get_embeddings(effect_list, fx_type, tag)
-        n_clusters = min(200, int(len(df_embs)/2)) # max 200 sample for evaluation
-        representative_effects = get_representative_effects(df_embs, n_clusters)
+        n_clusters = min(200, int(len(effect_list)/2)) # max 200 sample for evaluation
+        if fx_type == "eq":
+            id2ratings = {_id: ast.literal_eval(extra)["ratings_consistency"] for _id, extra in zip(df["id"], df['extra'])}
+            df_score = pd.DataFrame([{"id":i, "score": id2ratings[i]} for i in effect_list])
+            df_score.sort_values(by="score", ascending=False, inplace=True)
+            effect_list = df_score['id'].tolist()
+        else:
+            param_vector = np.stack([parma_dict[_id] for _id in effect_list])
+            centorid_vector = param_vector.mean(axis=0)
+            distances = euclidean_distances([centorid_vector], param_vector)[0]
+            sorted_idx = distances.argsort()
+            df_score = pd.DataFrame([{"id":effect_list[i], "score": distances[i]} for i in sorted_idx])
+            df_score.sort_values(by="score", ascending=False, inplace=True)
+            effect_list = df_score['id'].tolist()
+
         tag2effect.append({
             "text": tag,
-            "ids": representative_effects
+            "freq": freq,
+            "ids": effect_list[:n_clusters]
         })
     return tag2effect
 
 def main():
-    dataset = load_dataset("seungheondoh/socialfx-effect-dasp")
+    dataset = load_dataset("seungheondoh/socialfx-original")
     eval_dataset = {}
-
     for fx_type in dataset.keys():
         df = pd.DataFrame(dataset[fx_type])
         tag2effect = process_fx_type(df, fx_type)
         eval_dataset[fx_type] = Dataset.from_list(tag2effect)
-
     eval_dataset = DatasetDict(eval_dataset)
     eval_dataset.push_to_hub("seungheondoh/socialfx-eval")
 
