@@ -1,0 +1,10 @@
+{
+    "text": "echo-sound,distance,large-room,huge-alarm-sound",
+    "param_values": [
+        0.0674,
+        0.91,
+        -0.0011,
+        8880.0,
+        0.9625
+    ]
+}
