@@ -233,7 +233,7 @@ cat > $HTML_DIR/process_audio.html << 'EOF'
       updateProgress();
 
       // Process files in parallel, but in small batches to avoid memory issues
-      const batchSize = 16; // Process 5 files at a time
+      const batchSize = 8; // Process 5 files at a time
       for (let i = 0; i < batchData.length; i += batchSize) {
         const batch = batchData.slice(i, i + batchSize);
         await Promise.all(batch.map(job => processAudio(job.audioFile, job.eqParams, job.outputId)));

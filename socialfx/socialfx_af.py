@@ -10,7 +10,6 @@ ORIGINAL_EQ_KEY = ["RSC_20Hz_band", "RSC_50Hz_band", "RSC_83Hz_band", "RSC_120Hz
 EQ_KEY_NAME = ["band0_gain_db", "band1_gain_db", "band2_gain_db", "band3_gain_db", "band4_gain_db", "band5_gain_db", "band6_gain_db", "band7_gain_db", "band8_gain_db", "band9_gain_db", "band10_gain_db", "band11_gain_db", "band12_gain_db", "band13_gain_db", "band14_gain_db", "band15_gain_db", "band16_gain_db", "band17_gain_db", "band18_gain_db", "band19_gain_db", "band20_gain_db", "band21_gain_db", "band22_gain_db", "band23_gain_db", "band24_gain_db", "band25_gain_db", "band26_gain_db", "band27_gain_db", "band28_gain_db", "band29_gain_db", "band30_gain_db", "band31_gain_db", "band32_gain_db", "band33_gain_db", "band34_gain_db", "band35_gain_db", "band36_gain_db", "band37_gain_db", "band38_gain_db", "band39_gain_db"]
 REVERB_KEY_NAME = ["delay_time", "decay", "stereo_spread", "cutoff_freq", "wet_gain", "wet_dry"]
 COMP_KEY_NAME = ["threshold_db", "ratio", "attack_ms", "release_ms", "knee_db"]
-STOPWORD = ["no-change,same", "no-change", "none"]
 EQ_MAPPING = {key: name for key, name in zip(ORIGINAL_EQ_KEY, EQ_KEY_NAME)}
 KEY_MAPPING = {}
 
@@ -25,7 +24,7 @@ def eq_processor(df_eq):
         param_values = row.values
         param_keys = row.keys()
         extra = {"lang": descriptor, "ratings_consistency": float(ratings_consistency)}
-        if isinstance(text, str) and text not in STOPWORD:
+        if isinstance(text, str):
             results.append({
                 "id": f"eq_{idx}",
                 "text": f"{text.lower()}",
@@ -43,7 +42,7 @@ def reverb_processor(df_reverb):
         param_values = [float(i) for i in row['param'].split(",")]
         param_keys = REVERB_KEY_NAME
         extra = {"lang": row['language'], "agreed": row['agreed'], "didnotagree": row['didnotagree']}
-        if isinstance(text, str) and text not in STOPWORD:
+        if isinstance(text, str):
             results.append({
                 "id": f"reverb_{idx}",
                 "text": f"{text.lower()}",
@@ -61,7 +60,7 @@ def comp_processor(df_comp):
         param_values = [float(i) for i in row['param'].split(",")]
         param_keys = COMP_KEY_NAME
         extra = {"agreed": row['agreed'], "didnotagree": row['didnotagree']}
-        if isinstance(text, str) and text not in STOPWORD:
+        if isinstance(text, str):
             results.append({
                 "id": f"comp_{idx}",
                 "text": f"{text.lower()}",

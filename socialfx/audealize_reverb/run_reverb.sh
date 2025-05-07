@@ -262,7 +262,7 @@ cat > $HTML_DIR/process_audio.html << 'EOF'
       updateProgress();
 
       // Process files in parallel, but in small batches to avoid memory issues
-      const batchSize = 16; // Process 16 files at a time
+      const batchSize = 5; // Process 16 files at a time
       for (let i = 0; i < batchData.length; i += batchSize) {
         const batch = batchData.slice(i, i + batchSize);
 
@@ -575,13 +575,13 @@ fi
 # Run the entire process automatically
 echo "Running the entire audio processing pipeline..."
 
-# Create output directories for each reverb preset
-echo "Creating output directories for each reverb preset..."
-for reverb_file in "$REVERB_DIR"/*.json; do
-  reverb_name=$(basename "$reverb_file" .json)
-  reverb_dir="$OUTPUT_DIR/$reverb_name"
-  mkdir -p "$reverb_dir"
-done
+# # Create output directories for each reverb preset
+# echo "Creating output directories for each reverb preset..."
+# for reverb_file in "$REVERB_DIR"/*.json; do
+#   reverb_name=$(basename "$reverb_file" .json)
+#   reverb_dir="$OUTPUT_DIR/$reverb_name"
+#   mkdir -p "$reverb_dir"
+# done
 
 # Prepare the processing data
 echo "Preparing processing data..."

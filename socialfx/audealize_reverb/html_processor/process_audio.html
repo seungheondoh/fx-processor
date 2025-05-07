@@ -203,7 +203,7 @@
       updateProgress();
 
       // Process files in parallel, but in small batches to avoid memory issues
-      const batchSize = 16; // Process 16 files at a time
+      const batchSize = 5; // Process 16 files at a time
       for (let i = 0; i < batchData.length; i += batchSize) {
         const batch = batchData.slice(i, i + batchSize);
 

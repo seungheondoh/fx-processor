@@ -3,12 +3,16 @@ import os
 from collections import Counter
 from datasets import load_dataset, Dataset, DatasetDict
 import pandas as pd
-from constants import SYNONYM_MAP
 import numpy as np
-from sklearn.cluster import KMeans
-from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.preprocessing import MultiLabelBinarizer
+from data.vocab.eq_merged import EQ_MAPPING
+from data.vocab.reverb_merge import REVERB_MAPPING
 
-def filter_dataset(df):
+STOP_WORD = ['drum','bass', 'nice', 'pleasant', 'good', 'none', 'unclear']
+EQ_TRESHOLD = 20
+REVERB_TRESHOLD = 100
+
+def tag_merge(df, fx_type):
     """Filter dataset to get English tags and their IDs"""
     filtered = []
     for idx, row in df.iterrows():
@@ -19,7 +23,12 @@ def filter_dataset(df):
         except:
             lang = "english"
         for tag in tags:
-            tag = SYNONYM_MAP.get(tag, tag)
+            if fx_type == "eq":
+                tag = EQ_MAPPING.get(tag, tag)
+            elif fx_type == "reverb":
+                tag = REVERB_MAPPING.get(tag, tag)
+            if tag in STOP_WORD:
+                continue
             filtered.append({
                 "id": row["id"],
                 "tags": tag,
@@ -28,75 +37,59 @@ def filter_dataset(df):
     df_filtered = pd.DataFrame(filtered)
     return df_filtered[df_filtered["lang"] == "english"]
 
-def get_embeddings(effect_list, fx_type, tag):
-    """Get average embeddings across instruments for each effect"""
-    embedding_list = []
-    for effect in effect_list:
-        avg_embs = []
-        for inst in ['drums', 'guitar', 'piano']:
-            avg_embs.append(np.load(f"/data3/seungheon/fx_embedding/FXenc/{inst}/{fx_type}/{effect}.npy"))
-        embedding_list.append({
-            "emb": np.mean(avg_embs, axis=0),
-            "tag": tag,
-            "effect": effect
+def eval_for_classification(tag2ids_dict):
+    """Evaluate for classification"""
+    id2tags = {_id:[] for k,v in tag2ids_dict.items() for _id in v }
+    for tag,ids in tag2ids_dict.items():
+        for _id in ids:
+            id2tags[_id].append(tag)
+    unique_ids = list(id2tags.keys())
+    muiltilabel = [id2tags[i] for i in unique_ids]
+    mlb = MultiLabelBinarizer()
+    mlb.fit(muiltilabel)
+    binarys = mlb.transform(muiltilabel)
+    class_labels = list(mlb.classes_)
+    results = []
+    for _id, text, binary in zip(unique_ids, muiltilabel, binarys):
+        results.append({
+            "input": _id,
+            "output": text,
+            "binary": list(binary),
+            "labels": class_labels,
         })
-    return pd.DataFrame(embedding_list)
+    return results
 
-def get_representative_effects(embeddings, n_clusters):
-    """Get representative effects using k-means clustering"""
-    X = np.vstack(embeddings["emb"].values)
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-    kmeans.fit(X)
-    centroids = kmeans.cluster_centers_
-
-    effect_list = []
-    for centroid in centroids:
-        distances = euclidean_distances([centroid], X)[0]
-        closest_idx = np.argmin(distances)
-        closest_effect = embeddings.iloc[closest_idx]
-        effect_list.append(closest_effect["effect"])
-    return effect_list
-
-def process_fx_type(df, fx_type):
-    """Process single FX type to get tag-effect mappings"""
-    parma_dict = {k: v for k, v in zip(df['id'], df['param_values'])}
-    df_filtered = filter_dataset(df)
-    top_tags = Counter(df_filtered['tags']).most_common(15)
-    df_top_tags = df_filtered.groupby("tags")["id"].agg(list)
-    tag2effect = []
-    for tag, freq in top_tags:
-        effect_list = df_top_tags[tag]
-        n_clusters = min(200, int(len(effect_list)/2)) # max 200 sample for evaluation
-        if fx_type == "eq":
-            id2ratings = {_id: ast.literal_eval(extra)["ratings_consistency"] for _id, extra in zip(df["id"], df['extra'])}
-            df_score = pd.DataFrame([{"id":i, "score": id2ratings[i]} for i in effect_list])
-            df_score.sort_values(by="score", ascending=False, inplace=True)
-            effect_list = df_score['id'].tolist()
-        else:
-            param_vector = np.stack([parma_dict[_id] for _id in effect_list])
-            centorid_vector = param_vector.mean(axis=0)
-            distances = euclidean_distances([centorid_vector], param_vector)[0]
-            sorted_idx = distances.argsort()
-            df_score = pd.DataFrame([{"id":effect_list[i], "score": distances[i]} for i in sorted_idx])
-            df_score.sort_values(by="score", ascending=False, inplace=True)
-            effect_list = df_score['id'].tolist()
-
-        tag2effect.append({
-            "text": tag,
-            "freq": freq,
-            "ids": effect_list[:n_clusters]
+def eval_for_generation(tag2ids_dict):
+    """Evaluate for generation"""
+    results = []
+    for k,v in tag2ids_dict.items():
+        results.append({
+            "input": k,
+            "output": v,
         })
-    return tag2effect
+    return results
 
 def main():
     dataset = load_dataset("seungheondoh/socialfx-original")
-    eval_dataset = {}
-    for fx_type in dataset.keys():
+    cls_eval_dataset = {}
+    gen_eval_dataset = {}
+    for fx_type in ['eq', 'reverb']:
         df = pd.DataFrame(dataset[fx_type])
-        tag2effect = process_fx_type(df, fx_type)
-        eval_dataset[fx_type] = Dataset.from_list(tag2effect)
-    eval_dataset = DatasetDict(eval_dataset)
-    eval_dataset.push_to_hub("seungheondoh/socialfx-eval")
+        df_filtered = tag_merge(df, fx_type)
+        vocab = Counter(df_filtered['tags']).most_common()
+        df_tags = pd.DataFrame(vocab, columns=['tag', 'freq'])
+        if fx_type == "eq":
+            target_tags = df_tags[df_tags['freq'] > EQ_TRESHOLD]['tag']
+        else:
+            target_tags = df_tags[df_tags['freq'] > REVERB_TRESHOLD]['tag']
+        df_tag2ids = df_filtered.groupby("tags")["id"].agg(list)
+        tag2ids_dict = df_tag2ids[target_tags].to_dict()
+        gen_eval = eval_for_generation(tag2ids_dict)
+        cls_eval = eval_for_classification(tag2ids_dict)
+        gen_eval_dataset[fx_type] = Dataset.from_list(gen_eval)
+        cls_eval_dataset[fx_type] = Dataset.from_list(cls_eval)
+    DatasetDict(gen_eval_dataset).push_to_hub("seungheondoh/socialfx-gen-eval")
+    DatasetDict(cls_eval_dataset).push_to_hub("seungheondoh/socialfx-cls-eval")
 
 if __name__ == "__main__":
     main()
