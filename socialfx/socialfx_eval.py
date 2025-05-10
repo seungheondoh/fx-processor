@@ -6,9 +6,9 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MultiLabelBinarizer
 from data.vocab.eq_merged import EQ_MAPPING
-from data.vocab.reverb_merge import REVERB_MAPPING
+from data.vocab.reverb_merged import REVERB_MAPPING
 
-STOP_WORD = ['drum','bass', 'nice', 'pleasant', 'good', 'none', 'unclear']
+STOP_WORDS = ['drum','bass', 'nice', 'pleasant', 'good', 'none', 'unclear', "happy", "cold"]
 EQ_TRESHOLD = 20
 REVERB_TRESHOLD = 100
 
@@ -27,7 +27,7 @@ def tag_merge(df, fx_type):
                 tag = EQ_MAPPING.get(tag, tag)
             elif fx_type == "reverb":
                 tag = REVERB_MAPPING.get(tag, tag)
-            if tag in STOP_WORD:
+            if tag in STOP_WORDS:
                 continue
             filtered.append({
                 "id": row["id"],

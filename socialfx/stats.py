@@ -84,12 +84,9 @@ def get_eval_stats(fx_type):
     co_occurrence = np.dot(df_binary.T, df_binary)
     np.fill_diagonal(co_occurrence, 0)  # Remove self-connections
     # Normalize co-occurrence by tag frequencies
-    normalized_co_occurrence = co_occurrence.copy()
-    for i, j in zip(tag_frequencies, co_occurrence):
-        normalized_co_occurrence[j] = j / i
     # Plot co-occurrence matrix
     plt.figure(figsize=(10, 8))
-    sns.heatmap(normalized_co_occurrence, cmap='viridis', xticklabels=mlb.classes_, yticklabels=mlb.classes_)
+    sns.heatmap(co_occurrence, cmap='viridis', xticklabels=mlb.classes_, yticklabels=mlb.classes_)
     plt.title(f'Tag Co-occurrence Matrix for {fx_type}')
     plt.tight_layout()
     os.makedirs("./data/stats", exist_ok=True)
@@ -124,10 +121,9 @@ def main():
     for fx_type in ['eq', 'reverb']:
         df = pd.DataFrame(dataset[fx_type])
         raw_stats = get_raw_check_stats(df, fx_type)
-        merge_stats = get_tag_merge_stats(df, fx_type)
         eval_stats = get_eval_stats(fx_type)
         os.makedirs("./data/stats", exist_ok=True)
-        pd.DataFrame([raw_stats, merge_stats, eval_stats]).to_csv(f"./data/stats/{fx_type}.csv", index=False)
+        pd.DataFrame([raw_stats, eval_stats]).to_csv(f"./data/stats/{fx_type}.csv", index=False)
 
 if __name__ == "__main__":
     main()
